@@ -9,27 +9,13 @@
 -- Anchor windows to max date in v_otif_line_level instead.
 
 -- ---------------------------------------------------------
--- 0. v_otif_date_anchor
--- Single-row anchor for max delivery date — used by all
--- rolling window views to avoid non-deterministic CURRENT_DATE
--- ---------------------------------------------------------
-DROP VIEW IF EXISTS v_otif_date_anchor;
-
-CREATE VIEW v_otif_date_anchor AS
-SELECT
-    max(actual_delivery_date) AS max_delivery_date,
-    max(actual_delivery_date) - INTERVAL '30 days' AS window_start_30d,
-    max(actual_delivery_date) - INTERVAL '90 days' AS window_start_90d,
-    max(actual_delivery_date) - INTERVAL '180 days' AS window_start_180d
-FROM v_otif_line_level;
-
-COMMENT ON VIEW v_otif_date_anchor IS
-    'Deterministic date anchor for rolling window calculations.';
-
-
--- ---------------------------------------------------------
 -- 1. v_otif_line_level
 -- Base view: OTIF flag per delivery line against its order line
+-- NOTE: must be created before v_otif_date_anchor, which selects
+-- FROM this view — Postgres resolves FROM-clause relations before
+-- anything else, so the reverse order fails with "relation
+-- v_otif_line_level does not exist" the instant this file is applied
+-- to a fresh database.
 -- ---------------------------------------------------------
 DROP VIEW IF EXISTS v_otif_line_level;
 
@@ -97,6 +83,25 @@ WHERE s.actual_delivery_date IS NOT NULL;
 
 COMMENT ON VIEW v_otif_line_level IS
     'Per-delivery-line OTIF calculation with tolerances. Used by all downstream views.';
+
+
+-- ---------------------------------------------------------
+-- 0. v_otif_date_anchor
+-- Single-row anchor for max delivery date — used by all
+-- rolling window views to avoid non-deterministic CURRENT_DATE
+-- ---------------------------------------------------------
+DROP VIEW IF EXISTS v_otif_date_anchor;
+
+CREATE VIEW v_otif_date_anchor AS
+SELECT
+    max(actual_delivery_date) AS max_delivery_date,
+    max(actual_delivery_date) - INTERVAL '30 days' AS window_start_30d,
+    max(actual_delivery_date) - INTERVAL '90 days' AS window_start_90d,
+    max(actual_delivery_date) - INTERVAL '180 days' AS window_start_180d
+FROM v_otif_line_level;
+
+COMMENT ON VIEW v_otif_date_anchor IS
+    'Deterministic date anchor for rolling window calculations.';
 
 
 -- ---------------------------------------------------------
