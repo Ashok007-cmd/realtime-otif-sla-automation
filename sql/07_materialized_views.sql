@@ -63,7 +63,7 @@ CREATE MATERIALIZED VIEW mv_alert_dashboard_summary AS
 SELECT * FROM v_alert_dashboard_summary;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_alert_type
-    ON mv_alert_dashboard_summary(alert_type, vendor_code);
+    ON mv_alert_dashboard_summary(alert_type, entity);
 
 -- ---------------------------------------------------------
 -- Refresh procedure (run via cron every 30 minutes)
