@@ -62,8 +62,13 @@ DROP MATERIALIZED VIEW IF EXISTS mv_alert_dashboard_summary CASCADE;
 CREATE MATERIALIZED VIEW mv_alert_dashboard_summary AS
 SELECT * FROM v_alert_dashboard_summary;
 
+-- (alert_type, entity) alone is not unique: CONSECUTIVE_FAILURES carries
+-- one row per qualifying delivery event, so a vendor can appear many
+-- times under that alert_type. metric_value holds delivery_rank for that
+-- branch (a ROW_NUMBER(), unique per vendor) and is already at-most-one-
+-- row-per-entity for every other branch, so the triple is unique overall.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_alert_type
-    ON mv_alert_dashboard_summary(alert_type, entity);
+    ON mv_alert_dashboard_summary(alert_type, entity, metric_value);
 
 -- ---------------------------------------------------------
 -- Refresh procedure (run via cron every 30 minutes)
