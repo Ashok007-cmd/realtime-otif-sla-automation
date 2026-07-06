@@ -1,0 +1,176 @@
+{
+  "flow_name": "OTIF SLA Breach — Teams Adaptive Card",
+  "flow_description": "Sends a Microsoft Teams Adaptive Card to the logistics management channel when a Power BI data-driven alert fires.",
+  "trigger": {
+    "type": "Power BI connector — When a data-driven alert is triggered",
+    "notes": "Select the dashboard name and alert that will activate this flow."
+  },
+  "steps": [
+    {
+      "step": 1,
+      "action": "Trigger — When a data-driven alert is triggered",
+      "connector": "Power BI",
+      "input": {
+        "dashboardName": "OTIF SLA Monitoring",
+        "alertTitle_filter": "OTIF SLA Breach"
+      },
+      "output": "alert_payload (JSON body per schema)"
+    },
+    {
+      "step": 2,
+      "action": "Initialize variable — Severity",
+      "type": "String variable",
+      "value_expression": "if(less(triggerOutputs()?['body/metricValue'], 0.85), 'Critical', if(less(triggerOutputs()?['body/metricValue'], 0.92), 'Breached', 'Warning'))"
+    },
+    {
+      "step": 3,
+      "action": "Compose — Adaptive Card JSON",
+      "connector": "Built-in",
+      "description": "Build the Adaptive Card JSON payload with dynamic values from the alert.",
+      "output_card": {
+        "type": "message",
+        "attachments": [
+          {
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "content": {
+              "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+              "type": "AdaptiveCard",
+              "version": "1.5",
+              "msteams": {
+                "width": "Full"
+              },
+              "body": [
+                {
+                  "type": "TextBlock",
+                  "size": "Large",
+                  "weight": "Bolder",
+                  "text": "⚠️  OTIF SLA Breach Detected",
+                  "color": "attention"
+                },
+                {
+                  "type": "FactSet",
+                  "facts": [
+                    {
+                      "title": "Alert",
+                      "value": "@{triggerOutputs()?['body/alertTitle']}"
+                    },
+                    {
+                      "title": "Metric Value",
+                      "value": "@{formatNumber(triggerOutputs()?['body/metricValue'], 'P2')}"
+                    },
+                    {
+                      "title": "SLA Threshold",
+                      "value": "@{formatNumber(triggerOutputs()?['body/threshold'], 'P2')}"
+                    },
+                    {
+                      "title": "Direction",
+                      "value": "@{triggerOutputs()?['body/direction']}"
+                    },
+                    {
+                      "title": "Dashboard",
+                      "value": "@{triggerOutputs()?['body/dashboardName']}"
+                    },
+                    {
+                      "title": "Card Visual",
+                      "value": "@{triggerOutputs()?['body/cardName']}"
+                    },
+                    {
+                      "title": "Timestamp",
+                      "value": "@{triggerOutputs()?['body/occurred']}"
+                    },
+                    {
+                      "title": "Severity",
+                      "value": "@{variables('Severity')}"
+                    }
+                  ]
+                },
+                {
+                  "type": "ColumnSet",
+                  "columns": [
+                    {
+                      "type": "Column",
+                      "width": "stretch",
+                      "items": [
+                        {
+                          "type": "ActionSet",
+                          "actions": [
+                            {
+                              "type": "Action.OpenUrl",
+                              "title": "Open Report",
+                              "url": "@{triggerOutputs()?['body/url']}",
+                              "style": "positive"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "Column",
+                      "width": "stretch",
+                      "items": [
+                        {
+                          "type": "ActionSet",
+                          "actions": [
+                            {
+                              "type": "Action.Submit",
+                              "title": "Acknowledge",
+                              "data": {
+                                "ackType": "acknowledged",
+                                "alertTitle": "@{triggerOutputs()?['body/alertTitle']}",
+                                "timestamp": "@{triggerOutputs()?['body/occurred']}"
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "Column",
+                      "width": "stretch",
+                      "items": [
+                        {
+                          "type": "ActionSet",
+                          "actions": [
+                            {
+                              "type": "Action.Submit",
+                              "title": "Escalate",
+                              "style": "destructive",
+                              "data": {
+                                "ackType": "escalated",
+                                "alertTitle": "@{triggerOutputs()?['body/alertTitle']}",
+                                "timestamp": "@{triggerOutputs()?['body/occurred']}"
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "step": 4,
+      "action": "Post message in a chat or channel",
+      "connector": "Microsoft Teams",
+      "input": {
+        "postAs": "Flow bot",
+        "postIn": "Channel",
+        "team": "Logistics Operations",
+        "channel": "SLA Alerts",
+        "message": "See attached Adaptive Card"
+      },
+      "dynamic_content": "Use the output from Step 3 (Compose) as the message body."
+    }
+  ],
+  "notes": [
+    "The Adaptive Card uses a FactSet for clear key-value display of alert metadata.",
+    "Action buttons include: Open Report (deep link), Acknowledge, Escalate.",
+    "Severity is computed inline: <85% = Critical, 85-92% = Breached, >92% = Warning.",
+    "The 'color' field in the header TextBlock changes based on severity (attention=red, warning=amber)."
+  ]
+}

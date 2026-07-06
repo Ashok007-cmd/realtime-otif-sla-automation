@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OTIF SLA Breach Notification</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f6fa; font-family: 'Segoe UI', Helvetica, Arial, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f6fa;">
+    <tr>
+      <td align="center" style="padding: 24px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding: 32px 32px 16px 32px; border-bottom: 3px solid #e74c3c;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <h1 style="margin:0; font-size: 22px; font-weight: 600; color: #2c3e50;">
+                      ⚠️ OTIF SLA Breach Detected
+                    </h1>
+                    <p style="margin: 8px 0 0 0; color: #7f8c8d; font-size: 14px;">
+                      A critical SLA threshold has been breached in your supply chain metrics.
+                    </p>
+                  </td>
+                  <td align="right" style="vertical-align: top;">
+                    <span style="display: inline-block; padding: 6px 16px; border-radius: 4px; font-size: 12px; font-weight: 600; text-transform: uppercase; background-color: #e74c3c; color: #ffffff;">
+                      CRITICAL
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Alert Summary -->
+          <tr>
+            <td style="padding: 24px 32px;">
+              <h2 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: #2c3e50;">
+                Alert Summary
+              </h2>
+              <table width="100%" cellpadding="8" cellspacing="0" style="border: 1px solid #e0e0e0; border-radius: 4px;">
+                <tr style="background-color: #fafafa;">
+                  <td style="padding: 10px 16px; font-size: 14px; color: #7f8c8d; width: 140px; border-bottom: 1px solid #e0e0e0;">Alert Name</td>
+                  <td style="padding: 10px 16px; font-size: 14px; color: #2c3e50; font-weight: 500; border-bottom: 1px solid #e0e0e0;">
+                    <!--@alertTitle-->
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 16px; font-size: 14px; color: #7f8c8d; width: 140px; border-bottom: 1px solid #e0e0e0;">Metric Value</td>
+                  <td style="padding: 10px 16px; font-size: 16px; color: #e74c3c; font-weight: 700; border-bottom: 1px solid #e0e0e0;">
+                    <!--@metricValue-->
+                  </td>
+                </tr>
+                <tr style="background-color: #fafafa;">
+                  <td style="padding: 10px 16px; font-size: 14px; color: #7f8c8d; width: 140px; border-bottom: 1px solid #e0e0e0;">SLA Threshold</td>
+                  <td style="padding: 10px 16px; font-size: 14px; color: #2c3e50; font-weight: 500; border-bottom: 1px solid #e0e0e0;">
+                    <!--@threshold-->
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 16px; font-size: 14px; color: #7f8c8d; width: 140px; border-bottom: 1px solid #e0e0e0;">Direction</td>
+                  <td style="padding: 10px 16px; font-size: 14px; color: #2c3e50; border-bottom: 1px solid #e0e0e0;">
+                    <!--@direction-->
+                  </td>
+                </tr>
+                <tr style="background-color: #fafafa;">
+                  <td style="padding: 10px 16px; font-size: 14px; color: #7f8c8d; width: 140px; border-bottom: 1px solid #e0e0e0;">Dashboard</td>
+                  <td style="padding: 10px 16px; font-size: 14px; color: #2c3e50; border-bottom: 1px solid #e0e0e0;">
+                    <!--@dashboardName-->
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 16px; font-size: 14px; color: #7f8c8d; width: 140px; border-bottom: 1px solid #e0e0e0;">Visual</td>
+                  <td style="padding: 10px 16px; font-size: 14px; color: #2c3e50; border-bottom: 1px solid #e0e0e0;">
+                    <!--@cardName-->
+                  </td>
+                </tr>
+                <tr style="background-color: #fafafa;">
+                  <td style="padding: 10px 16px; font-size: 14px; color: #7f8c8d; width: 140px; border-bottom: 1px solid #e0e0e0;">Timestamp</td>
+                  <td style="padding: 10px 16px; font-size: 14px; color: #2c3e50; border-bottom: 1px solid #e0e0e0;">
+                    <!--@occurred-->
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 16px; font-size: 14px; color: #7f8c8d; width: 140px;">Severity</td>
+                  <td style="padding: 10px 16px; font-size: 14px; font-weight: 600; color: #e74c3c;">
+                    <!--@severity-->
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Actions -->
+          <tr>
+            <td style="padding: 0 32px 24px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <a href="<!--@reportUrl-->"
+                       style="display: inline-block; padding: 12px 32px; background-color: #2980b9; color: #ffffff;
+                              text-decoration: none; border-radius: 4px; font-size: 14px; font-weight: 600;">
+                      Open Power BI Report →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 16px 32px; background-color: #fafafa; border-radius: 0 0 8px 8px;">
+              <p style="margin: 0; font-size: 12px; color: #95a5a6;">
+                This is an automated alert from the OTIF SLA Monitoring system.
+                <br>
+                Generated at: <!--@alertGeneratedAt-->
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

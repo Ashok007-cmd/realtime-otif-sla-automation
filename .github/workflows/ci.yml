@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        make install
+    - name: Lint with ruff
+      run: |
+        make lint
+    - name: Typecheck with mypy
+      run: |
+        make typecheck
+    - name: Generate SQLite Data (Integration Test)
+      run: |
+        make generate-sqlite
+    - name: Validate Generated Data
+      run: |
+        make validate
+    - name: Create portable SQLite views
+      run: |
+        make views-sqlite
+    - name: Sanity-check SQLite views are queryable
+      run: |
+        ./venv/bin/python -c "
+        import sqlite3
+        c = sqlite3.connect('data/otif_seed.db')
+        cur = c.cursor()
+        n = cur.execute('SELECT COUNT(*) FROM v_otif_line_level').fetchone()[0]
+        assert n > 0, 'v_otif_line_level returned no rows'
+        cur.execute('SELECT COUNT(*) FROM v_alert_otif_below_threshold')
+        cur.execute('SELECT COUNT(*) FROM v_consecutive_failures')
+        print(f'v_otif_line_level: {n} rows')
+        c.close()
+        "
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    # Exercises the actual project deliverable end-to-end: schema, all SQL
+    # views, materialized views, and RLS against real PostgreSQL. The
+    # SQLite job above only ever tested the seed data generator — it never
+    # caught view-layer bugs (missing columns/tables, Postgres-only syntax
+    # errors, non-functional RLS policies) because it never ran the views.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: otif_monitoring
+          POSTGRES_USER: otif_user
+          POSTGRES_PASSWORD: ci_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U otif_user -d otif_monitoring"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: otif_monitoring
+      PGUSER: otif_user
+      PGPASSWORD: ci_test_password
+      OTIF_DB_HOST: localhost
+      OTIF_DB_PORT: 5432
+      OTIF_DB_NAME: otif_monitoring
+      OTIF_DB_USER: otif_user
+      OTIF_DB_PASSWORD: ci_test_password
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        make install
+    - name: Install psql client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+    - name: Apply schema
+      run: |
+        psql -v ON_ERROR_STOP=1 -f sql/01_schema/generic_dw_tables.sql
+        psql -v ON_ERROR_STOP=1 -f sql/01_schema/sap_erp_tables.sql
+    - name: Apply views, RLS, and materialized views
+      run: |
+        for f in sql/03_views_otif.sql sql/04_views_analytics.sql sql/05_views_alerts.sql sql/06_security_rls.sql sql/07_materialized_views.sql sql/08_views_sap_transformation.sql; do
+          echo "Applying $f..."
+          psql -v ON_ERROR_STOP=1 -f "$f"
+        done
+    - name: Generate seed data into PostgreSQL
+      run: |
+        ./venv/bin/python sql/02_seed_data_generator.py --db postgresql \
+          --connection "host=localhost dbname=otif_monitoring user=otif_user password=ci_test_password" \
+          --orders 1000 --seed 42
+    - name: Refresh materialized views
+      run: |
+        ./venv/bin/python refresh_views.py
+    - name: Sanity-check views return data
+      run: |
+        psql -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) FROM v_otif_line_level;"
+        psql -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) FROM mv_alert_dashboard_summary;"
+        psql -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) FROM v_consecutive_failures;"
+    - name: Verify RLS actually restricts regional_manager
+      run: |
+        psql -v ON_ERROR_STOP=1 <<'SQL'
+        CREATE ROLE ci_regional_manager LOGIN PASSWORD 'ci_test_password' IN ROLE regional_manager;
+        GRANT SELECT ON vendors TO ci_regional_manager;
+        SQL
+        UNSCOPED=$(psql -tA -c "SELECT COUNT(*) FROM vendors;")
+        SCOPED=$(PGUSER=ci_regional_manager PGPASSWORD=ci_test_password psql -tA -c "SET app.region = 'NE'; SELECT COUNT(*) FROM vendors;")
+        echo "Unscoped vendor count: $UNSCOPED, NE-scoped count: $SCOPED"
+        if [ "$SCOPED" -ge "$UNSCOPED" ]; then
+          echo "RLS region isolation is not restricting regional_manager rows!" >&2
+          exit 1
+        fi
+    - name: Run simulate_alerts.py end-to-end
+      run: |
+        ./venv/bin/python simulate_alerts.py
+    - name: Verify alert_history was populated
+      run: |
+        psql -v ON_ERROR_STOP=1 -c "SELECT alert_type, severity FROM alert_history LIMIT 5;"

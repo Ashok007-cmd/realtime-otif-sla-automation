@@ -1,0 +1,16 @@
+# OTIF Monitoring — Python dependencies
+# Install: pip install -r requirements.txt
+#
+# Pinned to exact versions (not >=) for reproducible, supply-chain-safe
+# installs — an unbounded minimum version can silently pull in a newer,
+# unvetted release. Bump deliberately and re-run `make lint typecheck
+# generate-sqlite validate` before committing a version bump.
+
+# Database
+psycopg2-binary==2.9.12  # PostgreSQL adapter
+python-dotenv==1.2.2     # Env variables for scripts
+
+# Development & quality
+black==26.5.1    # Code formatter
+ruff==0.15.20    # Linter (replaces flake8 + isort)
+mypy==2.1.0      # Type checker

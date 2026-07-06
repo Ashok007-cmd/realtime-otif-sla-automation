@@ -1,0 +1,301 @@
+// =============================================================
+// DAX Measures — OTIF Monitoring Dashboard
+// Target: Power BI Desktop / Power BI Service
+// Compatible with Import and DirectQuery modes
+// =============================================================
+
+// -----------------------------------------------------------
+// 1. BASE MEASURES
+// -----------------------------------------------------------
+
+-- Total delivery lines (count)
+Total Delivery Lines = COUNTROWS('delivery_lines')
+
+-- Total orders
+Total Orders = DISTINCTCOUNT('orders'[order_number])
+
+-- Total shipments
+Total Shipments = DISTINCTCOUNT('shipments'[shipment_number])
+
+-- -----------------------------------------------------------
+// 2. OTIF CORE MEASURES
+// -----------------------------------------------------------
+
+-- On-Time flag count
+On Time Count =
+CALCULATE(
+    COUNTROWS('delivery_lines'),
+    'delivery_lines'[delivered_qty] > 0,
+    RELATED('shipments'[actual_delivery_date]) <= RELATED('orders'[requested_delivery_date]),
+    RELATED('shipments'[actual_delivery_date]) >= RELATED('orders'[requested_delivery_date]) - 1
+)
+
+-- In-Full flag count
+In Full Count =
+CALCULATE(
+    COUNTROWS('delivery_lines'),
+    'delivery_lines'[delivered_qty] - 'delivery_lines'[damage_qty] >= RELATED('order_lines'[ordered_qty])
+)
+
+-- OTIF flag count
+OTIF Count =
+CALCULATE(
+    COUNTROWS('delivery_lines'),
+    -- On-Time condition
+    'delivery_lines'[delivered_qty] > 0,
+    RELATED('shipments'[actual_delivery_date]) <= RELATED('orders'[requested_delivery_date]),
+    RELATED('shipments'[actual_delivery_date]) >= RELATED('orders'[requested_delivery_date]) - 1,
+    -- In-Full condition
+    'delivery_lines'[delivered_qty] - 'delivery_lines'[damage_qty] >= RELATED('order_lines'[ordered_qty])
+)
+
+-- OTIF Percentage (card visual)
+OTIF % =
+VAR TotalLines = [Total Delivery Lines]
+VAR OtifLines = [OTIF Count]
+RETURN
+    DIVIDE(OtifLines, TotalLines, 0)
+
+-- On-Time Percentage
+On Time % =
+DIVIDE([On Time Count], [Total Delivery Lines], 0)
+
+-- In-Full Percentage
+In Full % =
+DIVIDE([In Full Count], [Total Delivery Lines], 0)
+
+-- -----------------------------------------------------------
+// 3. ROLLING OTIF MEASURES
+// -----------------------------------------------------------
+
+-- 7-Day Rolling OTIF %
+7D Rolling OTIF % =
+VAR MaxDate = MAX('shipments'[actual_delivery_date])
+VAR MinDate = MaxDate - 6
+VAR RollingLines =
+    CALCULATE(
+        COUNTROWS('delivery_lines'),
+        'shipments'[actual_delivery_date] >= MinDate,
+        'shipments'[actual_delivery_date] <= MaxDate
+    )
+VAR RollingOtif =
+    CALCULATE(
+        [OTIF Count],
+        'shipments'[actual_delivery_date] >= MinDate,
+        'shipments'[actual_delivery_date] <= MaxDate
+    )
+RETURN
+    DIVIDE(RollingOtif, RollingLines, 0)
+
+-- 30-Day Rolling OTIF %
+30D Rolling OTIF % =
+VAR MaxDate = MAX('shipments'[actual_delivery_date])
+VAR MinDate = MaxDate - 29
+VAR RollingLines =
+    CALCULATE(
+        COUNTROWS('delivery_lines'),
+        'shipments'[actual_delivery_date] >= MinDate,
+        'shipments'[actual_delivery_date] <= MaxDate
+    )
+VAR RollingOtif =
+    CALCULATE(
+        [OTIF Count],
+        'shipments'[actual_delivery_date] >= MinDate,
+        'shipments'[actual_delivery_date] <= MaxDate
+    )
+RETURN
+    DIVIDE(RollingOtif, RollingLines, 0)
+
+-- -----------------------------------------------------------
+// 4. CONSECUTIVE FAILURE MEASURES
+// -----------------------------------------------------------
+
+-- Current failure streak (most recent consecutive failures)
+-- NOTE: EARLIER() requires a nested row context over the same table, which
+-- SUMX over SortedLines does not provide (only one row context exists
+-- here) — the previous version would raise a DAX evaluation error
+-- ("EARLIER/EARLIEST refers to a row context that doesn't exist").
+-- CALCULATE already performs automatic context transition on the current
+-- 'shipments' row when invoked from SUMX's row context, so no manual
+-- filter is needed at all.
+Current Failure Streak =
+VAR CurrentVendor = SELECTEDVALUE('vendors'[vendor_code])
+VAR DeliveredLines =
+    FILTER(
+        'shipments',
+        'shipments'[vendor_code] = CurrentVendor
+            && 'shipments'[actual_delivery_date] <> BLANK()
+    )
+VAR SortedLines =
+    TOPN(
+        100,
+        DeliveredLines,
+        'shipments'[actual_delivery_date], DESC
+    )
+VAR FailureCount =
+    SUMX(
+        SortedLines,
+        VAR IsOtif = CALCULATE([OTIF Count])
+        RETURN IF(IsOtif = 0, 1, 0)
+    )
+RETURN FailureCount
+
+-- Max consecutive failures (any point)
+Max Consecutive Failures =
+MAXX(
+    VALUES('vendors'[vendor_code]),
+    [Current Failure Streak]
+)
+
+-- -----------------------------------------------------------
+// 5. BACKORDER MEASURES
+// -----------------------------------------------------------
+
+-- Total open backorder cost
+Total Open Backorder Cost =
+CALCULATE(
+    SUMX(
+        'backorders',
+        'backorders'[backorder_qty] * RELATED('products'[unit_price])
+    ),
+    'backorders'[status] = "open"
+)
+
+-- Total backorder count
+Open Backorder Count =
+CALCULATE(
+    COUNTROWS('backorders'),
+    'backorders'[status] = "open"
+)
+
+-- 7-Day rolling backorder cost
+7D Rolling Backorder Cost =
+VAR MaxDate = MAX('backorders'[created_at])
+VAR MinDate = MaxDate - 6
+RETURN
+    CALCULATE(
+        [Total Open Backorder Cost],
+        'backorders'[created_at] >= MinDate,
+        'backorders'[created_at] <= MaxDate
+    )
+
+-- Backorder to revenue ratio
+Backorder to Revenue Ratio =
+DIVIDE(
+    [Total Open Backorder Cost],
+    SUM('orders'[total_value]),
+    0
+)
+
+-- -----------------------------------------------------------
+// 6. DWELL TIME MEASURES
+// -----------------------------------------------------------
+
+-- Average order-to-ship days
+Avg Order to Ship Days =
+AVERAGEX(
+    'shipments',
+    DATEDIFF(
+        RELATED('orders'[order_date]),
+        'shipments'[actual_ship_date],
+        DAY
+    )
+)
+
+-- Average ship-to-delivery days
+Avg Ship to Delivery Days =
+AVERAGEX(
+    'shipments',
+    DATEDIFF(
+        'shipments'[actual_ship_date],
+        'shipments'[actual_delivery_date],
+        DAY
+    )
+)
+
+-- Average total lead time
+Avg Total Lead Time Days =
+AVERAGEX(
+    'shipments',
+    DATEDIFF(
+        RELATED('orders'[order_date]),
+        'shipments'[actual_delivery_date],
+        DAY
+    )
+)
+
+-- -----------------------------------------------------------
+// 7. SLA THRESHOLD MEASURES
+// -----------------------------------------------------------
+
+-- SLA Target (constant)
+SLA Target = 0.92
+
+-- Is SLA breached? (Boolean for conditional formatting)
+SLA Breached =
+IF([7D Rolling OTIF %] < [SLA Target], 1, 0)
+
+-- SLA Gap
+SLA Gap =
+[7D Rolling OTIF %] - [SLA Target]
+
+-- Vendor compliance score (0-100)
+Vendor Compliance Score =
+VAR OtifPct = [7D Rolling OTIF %]
+RETURN
+    SWITCH(
+        TRUE(),
+        OtifPct >= 0.95, 100,       -- Exceeding
+        OtifPct >= 0.92, 85,        -- Meeting
+        OtifPct >= 0.85, 60,        -- At Risk
+        OtifPct >= 0.75, 30,        -- Underperforming
+        0                           -- Critical
+    )
+
+-- Compliance status label
+Vendor SLA Status =
+VAR Score = [Vendor Compliance Score]
+RETURN
+    SWITCH(
+        TRUE(),
+        Score >= 85, "EXCEEDING",
+        Score >= 60, "MEETING",
+        Score >= 30, "AT_RISK",
+        "CRITICAL"
+    )
+
+-- -----------------------------------------------------------
+// 8. CARRIER MEASURES
+// -----------------------------------------------------------
+
+-- Carrier on-time percentage
+Carrier On Time % =
+VAR TotalDeliveries = [Total Delivery Lines]
+VAR OnTime = [On Time Count]
+RETURN DIVIDE(OnTime, TotalDeliveries, 0)
+
+-- -----------------------------------------------------------
+// 9. TREND MEASURES
+// -----------------------------------------------------------
+
+-- OTIF trend (current vs previous period)
+OTIF Trend =
+VAR CurrentPeriod = [7D Rolling OTIF %]
+VAR PreviousPeriod =
+    CALCULATE(
+        [7D Rolling OTIF %],
+        DATEADD('shipments'[actual_delivery_date], -7, DAY)
+    )
+RETURN
+    CurrentPeriod - PreviousPeriod
+
+-- OTIF trend direction (for up/down arrows)
+OTIF Trend Direction =
+VAR Trend = [OTIF Trend]
+RETURN
+    SWITCH(
+        TRUE(),
+        Trend > 0.01, "UP",
+        Trend < -0.01, "DOWN",
+        "FLAT"
+    )
