@@ -93,12 +93,22 @@ def main() -> None:
                 print(f"  -> channels: {channels}")
                 print("-" * 50 + "\n")
 
+                # alert_history_id has no engine-level auto-increment: in
+                # SQLite, "INTEGER PRIMARY KEY" is a rowid alias that
+                # self-assigns; in PostgreSQL it's a plain NOT NULL column
+                # with no default. The schema is intentionally shared
+                # verbatim between both engines (single source of truth —
+                # see sql/02_seed_data_generator.py), so the ID is computed
+                # here instead of diverging the DDL per engine. Safe for
+                # this script's single-writer, single-transaction use;
+                # not a pattern for concurrent writers.
                 cursor.execute(
                     """
                     INSERT INTO alert_history
-                        (alert_type, entity, severity, metric_value,
-                         threshold_value, alert_description, channels)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        (alert_history_id, alert_type, entity, severity,
+                         metric_value, threshold_value, alert_description, channels)
+                    SELECT COALESCE(MAX(alert_history_id), 0) + 1, %s, %s, %s, %s, %s, %s, %s
+                    FROM alert_history
                     """,
                     (
                         alert["alert_type"],
