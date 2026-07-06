@@ -38,6 +38,10 @@ ALTER TABLE alert_history ENABLE ROW LEVEL SECURITY;
 -- claim in the app's JWT or session variable.
 -- ---------------------------------------------------------
 
+-- The 'app' schema must exist before app.current_region() can be created
+-- in it — CREATE OR REPLACE FUNCTION does not create the parent schema.
+CREATE SCHEMA IF NOT EXISTS app;
+
 -- Helper: safe region resolver — returns 'DENY' if app.region is not set
 -- so that policies silently block all rows instead of raising an error.
 CREATE OR REPLACE FUNCTION app.current_region()
@@ -47,6 +51,11 @@ STABLE
 AS $$
     SELECT COALESCE(NULLIF(current_setting('app.region', true), ''), 'DENY');
 $$;
+
+-- Custom schemas (unlike 'public') grant no USAGE by default — every role
+-- whose RLS policy calls app.current_region() needs it explicitly, or the
+-- policy fails to resolve the function at query time.
+GRANT USAGE ON SCHEMA app TO regional_manager, reporting_user, auditor;
 
 -- NOTE ON POLICY COMBINATION: PostgreSQL RLS policies are PERMISSIVE by
 -- default and combined with OR within the same command type. A policy with

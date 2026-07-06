@@ -184,8 +184,7 @@ WITH daily_otif AS (
         total_lines,
         otif_lines,
         on_time_lines,
-        in_full_lines,
-        backorder_value_total
+        in_full_lines
     FROM v_otif_rolling_7d
 )
 SELECT
