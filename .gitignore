@@ -33,3 +33,4 @@ data/*.csv
 
 # OS
 Thumbs.db
+.claude/

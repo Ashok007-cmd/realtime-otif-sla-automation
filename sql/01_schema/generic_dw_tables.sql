@@ -2,6 +2,14 @@
 -- Generic Data Warehouse Schema for OTIF Monitoring
 -- Aligned with 02_seed_data_generator.py and all views
 -- =============================================================
+-- Money/quantity columns are NUMERIC, not REAL: the view layer calls
+-- ROUND(expr, 2) on aggregates of these columns, and PostgreSQL only
+-- defines the two-argument ROUND(numeric, integer) — there is no
+-- ROUND(real, integer) or ROUND(double precision, integer) overload.
+-- REAL columns would make every SUM()/AVG() aggregate over them resolve
+-- to real/double precision, and every ROUND(...,N) on top would fail
+-- with "function round(double precision, integer) does not exist".
+-- =============================================================
 
 CREATE TABLE IF NOT EXISTS customers (
     customer_id INTEGER PRIMARY KEY,
@@ -30,7 +38,7 @@ CREATE TABLE IF NOT EXISTS products (
     category TEXT,
     subcategory TEXT,
     unit_of_measure TEXT DEFAULT 'EA',
-    unit_price REAL
+    unit_price NUMERIC
 );
 
 CREATE TABLE IF NOT EXISTS carriers (
@@ -50,7 +58,7 @@ CREATE TABLE IF NOT EXISTS orders (
     order_status TEXT DEFAULT 'pending',
     channel TEXT,
     currency TEXT DEFAULT 'USD',
-    total_value REAL
+    total_value NUMERIC
 );
 
 CREATE TABLE IF NOT EXISTS order_lines (
@@ -60,10 +68,10 @@ CREATE TABLE IF NOT EXISTS order_lines (
     sku TEXT,
     product_name TEXT,
     category TEXT,
-    ordered_qty REAL NOT NULL,
-    confirmed_qty REAL,
-    unit_price REAL,
-    line_total REAL,
+    ordered_qty NUMERIC NOT NULL,
+    confirmed_qty NUMERIC,
+    unit_price NUMERIC,
+    line_total NUMERIC,
     partial_delivery_allowed INTEGER DEFAULT 1
 );
 
@@ -94,8 +102,8 @@ CREATE TABLE IF NOT EXISTS delivery_lines (
     line_number INTEGER,
     product_id INTEGER,
     sku TEXT,
-    delivered_qty REAL NOT NULL,
-    damage_qty REAL DEFAULT 0
+    delivered_qty NUMERIC NOT NULL,
+    damage_qty NUMERIC DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS backorders (
@@ -103,7 +111,7 @@ CREATE TABLE IF NOT EXISTS backorders (
     order_number TEXT NOT NULL,
     line_number INTEGER,
     product_id INTEGER,
-    backorder_qty REAL NOT NULL,
+    backorder_qty NUMERIC NOT NULL,
     estimated_fill_date DATE,
     status TEXT DEFAULT 'open',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
